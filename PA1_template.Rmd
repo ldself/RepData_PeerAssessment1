@@ -1,20 +1,135 @@
 # Reproducible Research: Peer Assessment 1
 
-
 ## Loading and preprocessing the data
 
+Note: This program assumes that the data is located in the working directory
 
+```{r echo=TRUE}
+activities <- read.csv("activity.csv")
+names(activities)[2] <- "datefactor"
+
+date <- as.Date(as.character(activities$datefactor))
+activities <- cbind(activities, date)
+
+dayofweek <- weekdays(activities$date)
+dayofweekfactor <- as.factor(dayofweek)
+activities <- cbind(activities, dayofweekfactor)
+
+weekendTF <- weekdays(activities$date)=="Sunday" | weekdays(activities$date)=="Saturday"
+weekendday <- dayofweek
+weekendday[weekendTF] <- "weekend"
+weekendday[weekendTF==FALSE] <- "weekday"
+daytypefactor <- as.factor(weekendday)
+activities <- cbind(activities, daytypefactor)
+
+intervalfactor <- as.factor(activities$interval)
+activities <- cbind(activities, intervalfactor)
+
+intervalindex <- as.numeric(intervalfactor)
+activities <- cbind(activities, intervalindex)
+
+# tidy up the data set
+activities <- data.frame(
+        steps=activities$steps,
+        date=activities$date,
+        datefactor=activities$datefactor,
+        dayofweekfactor=activities$dayofweekfactor,
+        daytypefactor=activities$daytypefactor,
+        interval=activities$interval,
+        intervalfactor=activities$intervalfactor,
+        intervalindex=activities$intervalindex)
+
+head(activities)
+```
 
 ## What is mean total number of steps taken per day?
+```{r echo=TRUE,stepsperdayhistogram}
+activities_steps_splitbydate <- with(activities, split(steps, datefactor))
+activities_steps_splitbydate_total <- sapply(activities_steps_splitbydate, sum, na.rm=TRUE)
+activities_steps_splitbydate_mean <- sapply(activities_steps_splitbydate, mean, na.rm=TRUE)
+activities_steps_splitbydate_median <- sapply(activities_steps_splitbydate, median, na.rm=TRUE)
 
+hist(activities_steps_splitbydate_total, xlab="Steps per day", main="Histogram of Steps per day", breaks=10)
+
+activities_steps_splitbydate_meanmedian_df <- 
+        data.frame(
+                mean=activities_steps_splitbydate_mean,
+                median=activities_steps_splitbydate_median)
+
+print (activities_steps_splitbydate_meanmedian_df)
+```
 
 
 ## What is the average daily activity pattern?
+```{r echo=TRUE,averagestepsbytimeinterval}
+activities_steps_splitbyinterval <- with(activities,split(steps, intervalfactor))
+activities_steps_splitbyinterval_mean <- sapply(activities_steps_splitbyinterval, mean, na.rm=TRUE)
+head(activities_steps_splitbyinterval_mean)
 
+plot(activities_steps_splitbyinterval_mean, type='l',main="Average Steps by Time Interval", xlab="Time Interval", ylab='Average Steps')
 
+max_steps_meanbyinterval <- which(activities_steps_splitbyinterval_mean==max(activities_steps_splitbyinterval_mean))
+names(max_steps_meanbyinterval)[1]
+
+```
 
 ## Imputing missing values
+```{r echo=TRUE,imputedstepsperdayhistogram}
+# Total number of missing values
+missingsteps <- is.na(activities$steps)
+sum(missingsteps)
 
+# create the imputed steps based on the average steps in each interval
+imputedsteps <- activities$steps
+activities <- cbind(activities, imputedsteps)
+activities$imputedsteps[missingsteps] <- 
+        activities_steps_splitbyinterval_mean[activities$intervalfactor[missingsteps]]
+
+# analyze the imputed steps
+activities_imputedsteps_splitbydate <- with(activities, split(imputedsteps, datefactor))
+activities_imputedsteps_splitbydate_total <- sapply(activities_imputedsteps_splitbydate, sum)
+activities_imputedsteps_splitbydate_mean <- sapply(activities_imputedsteps_splitbydate, mean)
+activities_imputedsteps_splitbydate_median <- sapply(activities_imputedsteps_splitbydate, median)
+
+hist(activities_imputedsteps_splitbydate_total, xlab="Imputed Steps per day", main="Histogram of Imputed Steps per day", breaks=10)
+
+activities_imputedsteps_splitbydate_meanmedian_df <- 
+        data.frame(
+                mean=activities_imputedsteps_splitbydate_mean, 
+                median=activities_imputedsteps_splitbydate_median)
+
+print (activities_imputedsteps_splitbydate_meanmedian_df)
+
+```
 
 
 ## Are there differences in activity patterns between weekdays and weekends?
+```{r,imputedstepspertimeinterval}
+activities_imputedsteps_splitbyinterval_weekend <- 
+        with(subset(activities, daytypefactor=="weekend")
+             ,split(imputedsteps, intervalfactor))
+activities_imputedsteps_splitbyinterval_weekday <- 
+        with(subset(activities, daytypefactor=="weekday")
+             ,split(imputedsteps, intervalfactor))
+activities_imputedsteps_splitbyinterval_weekend_mean <- 
+        sapply(activities_imputedsteps_splitbyinterval_weekend, mean)
+activities_imputedsteps_splitbyinterval_weekday_mean <- 
+        sapply(activities_imputedsteps_splitbyinterval_weekday, mean)
+
+
+par(mfrow=c(2,1))
+plot(activities_imputedsteps_splitbyinterval_weekend_mean, 
+     type='l',
+     main="weekend", 
+        xlab="Time Interval", 
+	ylab='Average Imputed Steps',
+	ylim=c(0,250)
+)
+plot(activities_imputedsteps_splitbyinterval_weekday_mean, 
+     type='l',
+     main="weekday", 
+	xlab="Time Interval", 
+	ylab='Average Imputed Steps',
+	ylim=c(0,250)
+)
+```
